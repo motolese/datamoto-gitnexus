@@ -105,7 +105,7 @@ The CLI indexes your repository and runs an MCP server that gives AI agents deep
 npx gitnexus analyze
 ```
 
-That's it. This indexes the codebase, installs agent skills, registers Claude Code hooks, and creates `AGENTS.md` / `CLAUDE.md` context files — all in one command.
+That's it. This indexes the codebase, installs agent skills, and creates `AGENTS.md` / `CLAUDE.md` context files. It does not register lifecycle callbacks.
 
 > **On npm 11.x?** `npx` can crash during install with `Cannot destructure property 'package' of 'node.target'` (an npm/arborist bug, before GitNexus runs). Use pnpm instead — it builds the native deps explicitly:
 >
@@ -127,19 +127,16 @@ To configure MCP for your editor, run `npx gitnexus setup` once — or set it up
 
 ### Editor Support
 
-| Editor               | MCP | Skills | Hooks (auto-augment)                                                                    | Support      |
-| -------------------- | --- | ------ | --------------------------------------------------------------------------------------- | ------------ |
-| **Claude Code**      | Yes | Yes    | Yes (PreToolUse + PostToolUse)                                                          | **Full**     |
-| **Cursor**           | Yes | Yes    | Yes (postToolUse, [manual install](gitnexus-cursor-integration/README.md#hook-install)) | **Full**     |
-| **Antigravity** (Google) | Yes | Yes | Yes (AfterTool, [Gemini CLI hooks schema](https://geminicli.com/docs/hooks/reference/))[¹](#fn-antigravity-hooks) | **Full**     |
-| **Codex**            | Yes | Yes    | —                                                                                       | MCP + Skills |
-| **Windsurf**         | Yes | —      | —                                                                                       | MCP          |
-| **OpenCode**         | Yes | Yes    | —                                                                                       | MCP + Skills |
+| Editor                   | MCP | Skills | Support      |
+| ------------------------ | --- | ------ | ------------ |
+| **Claude Code**          | Yes | Yes    | **Full**     |
+| **Cursor**               | Yes | Yes    | **Full**     |
+| **Antigravity** (Google) | Yes | Yes    | **Full**     |
+| **Codex**                | Yes | Yes    | MCP + Skills |
+| **Windsurf**             | Yes | —      | MCP          |
+| **OpenCode**             | Yes | Yes    | MCP + Skills |
 
-> **Claude Code** gets the deepest integration: MCP tools + agent skills + PreToolUse hooks that enrich searches with graph context + PostToolUse hooks that detect a stale index after commits and prompt the agent to reindex.
-
-<a id="fn-antigravity-hooks"></a>
-> ¹ **Antigravity hooks** follow the [Gemini CLI hooks reference](https://geminicli.com/docs/hooks/reference/) (Antigravity 2.0 is the documented successor to Gemini CLI). Augmentation runs in `AfterTool` because `BeforeTool` has no context-injection channel in the Gemini contract — the agent sees graph context appended to the tool result via `hookSpecificOutput.additionalContext`. Stale-index hints land in the same channel after a successful `git commit/merge/rebase/cherry-pick/pull`. The schema may evolve if Antigravity-specific hook docs diverge from Gemini CLI's; the implementation will track those changes.
+GitNexus integrations are explicit: MCP, skills, and `gitnexus analyze`. Setup does not register editor, Git, or session callbacks.
 
 ## Community Integrations
 
@@ -156,7 +153,7 @@ If you prefer manual configuration:
 
 > **Recommended for fastest startup:** install gitnexus globally (`npm i -g gitnexus`) and run `gitnexus setup` — this writes an absolute-path MCP config that bypasses `npx` entirely. The pinned-`npx` snippets below are a quickstart fallback; on a cold cache the `npx` install can exceed Claude Code's `MCP_TIMEOUT` default (~30s).
 
-**Claude Code** (full support — MCP + skills + hooks):
+**Claude Code** (full support — MCP + skills):
 
 ```bash
 # macOS / Linux
@@ -198,7 +195,7 @@ codex mcp add gitnexus -- npx -y gitnexus@latest mcp
 }
 ```
 
-> `gitnexus setup` also merges an `AfterTool` entry into `~/.gemini/settings.json` (under the canonical [Gemini CLI hooks schema](https://geminicli.com/docs/hooks/reference/)) and installs skills to `~/.gemini/antigravity/skills/`. Existing user hooks are preserved. The hook adapter's path is rewritten at install time, so run `gitnexus setup` rather than hand-editing.
+`gitnexus setup` installs Antigravity skills and the MCP entry only. Re-index explicitly with `gitnexus analyze`.
 
 **OpenCode** (`~/.config/opencode/config.json`):
 
@@ -225,7 +222,7 @@ args = ["-y", "gitnexus@latest", "mcp"]
 
 ```bash
 gitnexus setup                   # Configure MCP for your editors (one-time)
-gitnexus uninstall               # Preview removal of GitNexus MCP/skills/hooks (add --force to apply)
+gitnexus uninstall               # Preview removal of GitNexus MCP/skills and legacy callback residue
 gitnexus analyze [path]          # Index a repository (or update stale index)
 gitnexus analyze --repair-fts    # Fast path: rebuild/verify only FTS indexes on existing index data
 gitnexus analyze --force         # Full rebuild: re-parse + graph rebuild + FTS rebuild
@@ -262,7 +259,7 @@ gitnexus group query <name> <q>  # Search execution flows across all repos in a 
 gitnexus group status <name>     # Check staleness of repos in a group
 ```
 
-> **`gitnexus uninstall`** reverses `gitnexus setup` — it removes the GitNexus MCP entries, hooks, and skill directories it added to each detected editor. Skill directories are identified **by bundled gitnexus skill name** (e.g. `gitnexus-cli/`), so if you customized files inside an installed skill directory, back them up first. It is a dry-run preview by default and prints the exact paths it would remove; pass `--force` to apply. Per-repo indexes (`gitnexus clean --all`) and the global npm package (`npm uninstall -g gitnexus`) are left for you to remove.
+> **`gitnexus uninstall`** removes GitNexus MCP entries and skill directories. It also cleans callback residue from older releases. Skill directories are identified **by bundled gitnexus skill name** (e.g. `gitnexus-cli/`), so if you customized files inside an installed skill directory, back them up first. It is a dry-run preview by default and prints the exact paths it would remove; pass `--force` to apply. Per-repo indexes (`gitnexus clean --all`) and the global npm package (`npm uninstall -g gitnexus`) are left for you to remove.
 
 If `analyze` reports a worker parse timeout on a large or unusual repository, it keeps running and falls back safely. To give slow worker jobs more time, use `gitnexus analyze --worker-timeout 60` or set `GITNEXUS_WORKER_SUB_BATCH_TIMEOUT_MS=60000`. For very large files, `GITNEXUS_WORKER_SUB_BATCH_MAX_BYTES` controls the worker job byte budget.
 
@@ -879,7 +876,7 @@ The wiki generator reads the indexed graph structure, groups files into modules 
 
 - [x] Constructor-Inferred Type Resolution, `self`/`this` Receiver Mapping
 - [x] Wiki Generation, Multi-File Rename, Git-Diff Impact Analysis
-- [x] Process-Grouped Search, 360-Degree Context, Claude Code Hooks
+- [x] Process-Grouped Search and 360-Degree Context
 - [x] Multi-Repo MCP, Zero-Config Setup, 14 Language Support
 - [x] Community Detection, Process Detection, Confidence Scoring
 - [x] Hybrid Search, Vector Index

@@ -4,7 +4,7 @@ import path from 'node:path';
 
 // Steering policy (#1939, #1945): the committed skill files route gitnexus
 // commands through the project-local runner `gitnexus analyze` drops next to the
-// index (`node .gitnexus/run.cjs <command>`). That one CLI-neutral command
+// index (`gitnexus <command>`). That one CLI-neutral command
 // resolves the available runner (global `gitnexus` → `pnpm dlx` → `npx`) at call
 // time, so the docs make no package-manager assumption. The runner only exists
 // after the first analyze, so the cli skill documents a bootstrap path (and the

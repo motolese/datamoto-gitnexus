@@ -2,6 +2,35 @@ import type { ContractType, CrossLink, GroupManifestLink, StoredContract } from 
 import type { CypherExecutor } from '../contract-extractor.js';
 
 import { logger } from '../../logger.js';
+
+const TOPIC_SYMBOL_LABELS = ['Function', 'Method', 'Class', 'Interface'];
+const RPC_METHOD_LABELS = ['Function', 'Method'];
+const RPC_SERVICE_LABELS = ['Class', 'Interface'];
+const LIB_SYMBOL_LABELS = ['Package', 'Module'];
+const CUSTOM_SYMBOL_LABELS = [
+  'Function',
+  'Method',
+  'Class',
+  'Interface',
+  'Struct',
+  'Enum',
+  'Trait',
+  'Constructor',
+  'TypeAlias',
+  'Impl',
+  'Macro',
+  'Union',
+  'Typedef',
+  'Property',
+  'Record',
+  'Delegate',
+  'Annotation',
+  'Template',
+  'Const',
+  'Static',
+  'CodeElement',
+];
+
 export interface ManifestExtractResult {
   contracts: StoredContract[];
   crossLinks: CrossLink[];
@@ -220,11 +249,12 @@ export class ManifestExtractor {
         // avoid cross-matching Files/Variables/Imports that happen to
         // share the topic name.
         rows = await executor(
-          `MATCH (n:Function|Method|Class|Interface) WHERE n.name = $contract
+          `MATCH (n)
+           WHERE labels(n) IN $labels AND n.name = $contract
            RETURN n.id AS uid, n.name AS name, n.filePath AS filePath
            ORDER BY n.filePath ASC
            LIMIT 1`,
-          { contract: link.contract },
+          { labels: TOPIC_SYMBOL_LABELS, contract: link.contract },
         );
       } else if (link.type === 'grpc' || link.type === 'thrift') {
         // Contract is "Service/Method" or just "Service" (or package.Service
@@ -244,19 +274,21 @@ export class ManifestExtractor {
         const methodName = parts[1]?.trim() ?? '';
         if (methodName) {
           rows = await executor(
-            `MATCH (n:Function|Method) WHERE n.name = $methodName
+            `MATCH (n)
+             WHERE labels(n) IN $labels AND n.name = $methodName
              RETURN n.id AS uid, n.name AS name, n.filePath AS filePath
              ORDER BY n.filePath ASC
              LIMIT 1`,
-            { methodName },
+            { labels: RPC_METHOD_LABELS, methodName },
           );
         } else if (serviceName) {
           rows = await executor(
-            `MATCH (n:Class|Interface) WHERE n.name = $serviceName
+            `MATCH (n)
+             WHERE labels(n) IN $labels AND n.name = $serviceName
              RETURN n.id AS uid, n.name AS name, n.filePath AS filePath
              ORDER BY n.filePath ASC
              LIMIT 1`,
-            { serviceName },
+            { labels: RPC_SERVICE_LABELS, serviceName },
           );
         } else {
           rows = [];
@@ -268,11 +300,12 @@ export class ManifestExtractor {
         // package-level labels so we don't return arbitrary symbols
         // named after a library.
         rows = await executor(
-          `MATCH (n:Package|Module) WHERE n.name = $contract
+          `MATCH (n)
+           WHERE labels(n) IN $labels AND n.name = $contract
            RETURN n.id AS uid, n.name AS name, n.filePath AS filePath
            ORDER BY n.filePath ASC
            LIMIT 1`,
-          { contract: link.contract },
+          { labels: LIB_SYMBOL_LABELS, contract: link.contract },
         );
       } else if (link.type === 'include') {
         rows = await executor(
@@ -290,12 +323,12 @@ export class ManifestExtractor {
           ? link.contract.split('::').pop()!
           : link.contract;
         rows = await executor(
-          `MATCH (n:Function|Method|Class|Interface|Struct|Enum|Trait|Constructor|TypeAlias|Impl|Macro|Union|Typedef|Property|Record|Delegate|Annotation|Template|Const|Static|CodeElement)
-           WHERE n.name = $symbolName
+          `MATCH (n)
+           WHERE labels(n) IN $labels AND n.name = $symbolName
            RETURN n.id AS uid, n.name AS name, n.filePath AS filePath
            ORDER BY n.filePath ASC
            LIMIT 1`,
-          { symbolName },
+          { labels: CUSTOM_SYMBOL_LABELS, symbolName },
         );
       } else {
         return null;

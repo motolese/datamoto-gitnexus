@@ -1,0 +1,4 @@
+kind	path
+typescript	gitnexus/test/unit/group/cross-impact.test.ts
+typescript	gitnexus/test/unit/group/manifest-extractor.test.ts
+typescript	gitnexus/test/unit/calltool-dispatch.test.ts

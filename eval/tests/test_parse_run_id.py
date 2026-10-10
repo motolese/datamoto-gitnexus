@@ -4,10 +4,10 @@ analysis_module = pytest.importorskip("analysis.analyze_results")
 parse_run_id = analysis_module.parse_run_id
 
 
-def test_parse_run_id_native_augment():
-    model, mode = parse_run_id("claude-sonnet_native_augment")
+def test_parse_run_id_baseline():
+    model, mode = parse_run_id("claude-sonnet_baseline")
     assert model == "claude-sonnet"
-    assert mode == "native_augment"
+    assert mode == "baseline"
 
 
 def test_parse_run_id_hyphenated_model():

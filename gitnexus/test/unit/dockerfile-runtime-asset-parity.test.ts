@@ -7,15 +7,13 @@ import { fileURLToPath } from 'node:url';
  * Regression guard for #2130.
  *
  * `Dockerfile.cli`'s runtime stage hand-copies a SUBSET of the package's
- * published assets (`package.json` `files` = dist, hooks, scripts, skills,
+ * published assets (`package.json` `files` = dist, scripts, skills,
  * vendor, web) out of the builder. npm ships all of `files`, but the Docker
  * image copies only what it thinks it needs — so when compiled `dist/**` gains a
  * `require()`/`createRequire()` into a sibling directory that the runtime stage
  * does NOT copy, the image crashes with `MODULE_NOT_FOUND` at module load while
- * the npm package keeps working. That is exactly #2130: `dist/cli/
- * resolve-invocation.js` does `require('../../hooks/claude/resolve-analyze-cmd.cjs')`
- * (statically imported by `analyze.ts`), but the runtime stage never copied
- * `hooks/`, so `gitnexus analyze` inside the image died before doing any work.
+ * the npm package keeps working. The resolver is now native TypeScript and has
+ * no out-of-package runtime dependency; this test guards future regressions.
  *
  * This test derives, from the SOURCE tree, every out-of-`dist` asset that
  * compiled code `require()`s AT MODULE LOAD, then asserts each one is covered by
@@ -37,7 +35,7 @@ const toPosix = (p: string): string => p.split(path.sep).join('/');
 
 /**
  * Source paths (relative to the gitnexus package root) copied into the image by
- * the RUNTIME stage of Dockerfile.cli — e.g. `hooks`,
+ * the RUNTIME stage of Dockerfile.cli — e.g.
  * `scripts/install-duckdb-extension.mjs`. The builder stage's full-tree
  * `COPY gitnexus ./gitnexus` is ignored on purpose: it would mask every gap.
  */
@@ -86,7 +84,7 @@ function listSourceFiles(dir: string): string[] {
   return out;
 }
 
-// The `createRequire(...)('../x')` IIFE form (e.g. resolve-invocation.ts).
+// The `createRequire(...)('../x')` IIFE form.
 // Captures the relative specifier (starting with '.'). The built-in
 // `require`/`_require` and aliased-binding literal forms are matched separately
 // in `scanContent` from the file's discovered require-family identifiers, and
@@ -281,54 +279,6 @@ function requiredExternalAssets(): RequireScan {
   return { assets, unresolvedComputed };
 }
 
-/**
- * Hand-written shipped assets the runtime image executes directly (hook and
- * installer `.cjs`/`.mjs`), derived from the runtime COPY set minus dependency/
- * data roots (`node_modules`, `vendor`, `dist`, `skills`, `package.json`).
- * Unlike `src/**` these are not compiled, so they require siblings at their OWN
- * package-relative location.
- */
-function shippedAssetFiles(copiedSources: string[]): string[] {
-  const SKIP = new Set(['dist', 'node_modules', 'vendor', 'skills', 'web', 'package.json']);
-  const out: string[] = [];
-  const walk = (absDir: string, relDir: string): void => {
-    for (const e of readdirSync(absDir, { withFileTypes: true })) {
-      const abs = path.join(absDir, e.name);
-      const rel = relDir ? `${relDir}/${e.name}` : e.name;
-      if (e.isDirectory()) walk(abs, rel);
-      else if (/\.(cjs|mjs|js)$/.test(e.name)) out.push(rel);
-    }
-  };
-  for (const entry of new Set(copiedSources)) {
-    if (SKIP.has(entry)) continue;
-    if (/\.(cjs|mjs|js)$/.test(entry)) {
-      out.push(entry); // a single shipped script (e.g. scripts/install-duckdb-extension.mjs)
-    } else {
-      walk(path.join(GITNEXUS_ROOT, entry), entry); // a directory of shipped assets (e.g. hooks)
-    }
-  }
-  return out;
-}
-
-/**
- * Relative `require()`s of shipped `.cjs`/`.mjs` assets, resolved against the
- * asset's OWN package-relative dir (not the `dist` mapping). Coverage is checked
- * by COPY prefix, never on-disk existence: `hooks/antigravity/*.cjs` does
- * `require('./hook-lock.cjs')`, which resolves to `hooks/antigravity/hook-lock.cjs`
- * — a path that need not physically exist but IS covered by the whole-`hooks` COPY.
- */
-function shippedAssetRequiredAssets(copiedSources: string[]): { asset: string; source: string }[] {
-  const found: { asset: string; source: string }[] = [];
-  for (const rel of shippedAssetFiles(copiedSources)) {
-    const baseDir = path.posix.dirname(rel);
-    const content = stripComments(readFileSync(path.join(GITNEXUS_ROOT, rel), 'utf-8'));
-    for (const m of content.matchAll(/\brequire\s*\(\s*['"](\.[^'"]+)['"]\s*\)/g)) {
-      found.push({ asset: path.posix.normalize(path.posix.join(baseDir, m[1])), source: rel });
-    }
-  }
-  return found;
-}
-
 describe('Dockerfile.cli runtime-stage asset parity (#2130)', () => {
   const dockerfile = readFileSync(DOCKERFILE, 'utf-8');
   const copied = runtimeStageCopiedSources(dockerfile);
@@ -342,12 +292,6 @@ describe('Dockerfile.cli runtime-stage asset parity (#2130)', () => {
     );
   });
 
-  it('copies hooks/ — resolve-invocation.ts require()s it at module load (#2130)', () => {
-    // The exact regression: without this COPY, `gitnexus analyze` crashes inside
-    // the image with `Cannot find module '../../hooks/claude/resolve-analyze-cmd.cjs'`.
-    expect(copied).toContain('hooks');
-  });
-
   it('copies skills/ — CLI reads the bundled SKILL.md templates at runtime', () => {
     // Degradation class (not a crash): `gitnexus analyze --skills` (ai-context.ts)
     // and `gitnexus setup`/`uninstall` read `<pkg>/skills/*.md`. Absent, they
@@ -357,11 +301,8 @@ describe('Dockerfile.cli runtime-stage asset parity (#2130)', () => {
     expect(copied).toContain('skills');
   });
 
-  it('sanity-checks the scanner sees both literal and vetted-computed module-load deps', () => {
+  it('sanity-checks the scanner sees the vetted computed module-load dependency', () => {
     const assets = requiredExternalAssets().assets.map((a) => a.asset);
-    // literal IIFE require (resolve-invocation.ts → hooks) …
-    expect(assets).toContain('hooks/claude/resolve-analyze-cmd.cjs');
-    // … and the vetted COMPUTED require (community-processor.ts → vendor/leiden).
     expect(assets).toContain('vendor/leiden/index.cjs');
   });
 
@@ -416,9 +357,9 @@ describe('Dockerfile.cli runtime-stage asset parity (#2130)', () => {
     // Aliased binding with a relative literal → resolved like require('../x').
     const aliased = scanContent(
       'cli/widget.ts',
-      "const requireCJS = createRequire(import.meta.url);\nconst x = requireCJS('../../hooks/z.cjs');\n",
+      "const requireCJS = createRequire(import.meta.url);\nconst x = requireCJS('../../assets/z.cjs');\n",
     );
-    expect(aliased.assets.map((a) => a.asset)).toContain('hooks/z.cjs');
+    expect(aliased.assets.map((a) => a.asset)).toContain('assets/z.cjs');
     expect(aliased.unresolvedComputed).toEqual([]);
     // A computed require INSIDE a function is out of the module-load charter.
     const inFn = scanContent('cli/widget.ts', 'function f(pkg) {\n  return require(pkg);\n}\n');
@@ -426,20 +367,4 @@ describe('Dockerfile.cli runtime-stage asset parity (#2130)', () => {
     expect(inFn.assets).toEqual([]);
   });
 
-  it('covers sibling requires of shipped .cjs/.mjs assets (coverage, not existence)', () => {
-    const shipped = shippedAssetRequiredAssets(copied);
-    // Sanity: the hand-written hook .cjs sibling requires are actually scanned
-    // (e.g. gitnexus-hook.cjs → ./hook-lock.cjs); guards against a silent no-op.
-    expect(shipped.length).toBeGreaterThan(0);
-    const uncovered = shipped.filter(({ asset }) => !isCovered(asset, copied));
-    expect(
-      uncovered,
-      `Shipped .cjs/.mjs assets require siblings not COPY'd into the image:\n` +
-        uncovered.map((u) => `  - ${u.asset}  (required by ${u.source})`).join('\n'),
-    ).toEqual([]);
-    // The antigravity hook's `require('./hook-lock.cjs')` resolves to a path that
-    // does NOT physically exist (hook-lock.cjs lives under hooks/claude), yet is
-    // covered by the whole-`hooks` COPY — coverage-check, not existence-check.
-    expect(isCovered('hooks/antigravity/hook-lock.cjs', copied)).toBe(true);
-  });
 });

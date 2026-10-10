@@ -12,9 +12,6 @@ Evaluate whether GitNexus code intelligence improves AI agent performance on rea
 |------|-------------------|
 | `baseline` | Standard bash tools (grep, find, cat, sed) — control group |
 | `native` | Baseline + explicit GitNexus tools via eval-server (~100ms) |
-| `native_augment` | Native tools + grep results automatically enriched with graph context (**recommended**) |
-
-> **Recommended**: Use `native_augment` mode. It mirrors the Claude Code model — the agent gets both explicit GitNexus tools (fast bash commands) AND automatic enrichment of grep results with callers, callees, and execution flows. The agent decides when to use explicit tools vs rely on enriched search output.
 
 **Models supported:**
 
@@ -66,7 +63,7 @@ python run_eval.py debug -m claude-haiku -i django__django-16527 --subset lite
 ### Run a single configuration
 
 ```bash
-# 5 instances, Claude Sonnet, native_augment mode (default)
+# 5 instances, Claude Sonnet, native mode (default)
 python run_eval.py single -m claude-sonnet --subset lite --slice 0:5
 
 # Baseline comparison (no GitNexus)
@@ -82,8 +79,8 @@ python run_eval.py single -m claude-sonnet --subset lite -w 4
 # All models x all modes
 python run_eval.py matrix --subset lite -w 4
 
-# Key comparison: baseline vs native_augment
-python run_eval.py matrix -m claude-sonnet -m claude-haiku --modes baseline --modes native_augment --subset lite --slice 0:50
+# Key comparison: baseline vs explicit GitNexus tools
+python run_eval.py matrix -m claude-sonnet -m claude-haiku --modes baseline --modes native --subset lite --slice 0:50
 ```
 
 ### Analyze results
@@ -117,7 +114,7 @@ python run_eval.py list-configs
 eval/
   run_eval.py              # Main entry point (single, matrix, debug commands)
   agents/
-    gitnexus_agent.py      # GitNexusAgent: extends DefaultAgent with augmentation + metrics
+    gitnexus_agent.py      # GitNexusAgent: extends DefaultAgent with explicit tools + metrics
   environments/
     gitnexus_docker.py     # Docker env with GitNexus + eval-server + standalone tool scripts
   bridge/
@@ -128,11 +125,9 @@ eval/
     instance_baseline.jinja        # Instance: task + workflow
     system_native.jinja            # System: + GitNexus tool reference
     instance_native.jinja          # Instance: + GitNexus debugging workflow
-    system_native_augment.jinja    # System: + GitNexus tools + grep enrichment docs
-    instance_native_augment.jinja  # Instance: + GitNexus workflow + risk assessment
   configs/
     models/                # Per-model YAML configs
-    modes/                 # Per-mode YAML configs (baseline, native, native_augment)
+    modes/                 # Per-mode YAML configs (baseline, native)
   analysis/
     analyze_results.py     # Post-run comparative analysis
   results/                 # Output directory (gitignored)
@@ -156,7 +151,7 @@ Each mode has a `system_{mode}.jinja` + `instance_{mode}.jinja` pair. The agent 
 4. **Standalone tool scripts installed** in `/usr/local/bin/` — works with `subprocess.run` (no `.bashrc` needed)
 5. Agent runs with the configured model + system prompt + GitNexus tools
 6. Agent's patch is extracted as a git diff
-7. Metrics collected: cost, tokens, tool calls, GitNexus usage, augmentation stats
+7. Metrics collected: cost, tokens, tool calls, and GitNexus usage
 
 ### Tool architecture
 
@@ -203,7 +198,7 @@ Parse the port as the last colon-segment (`split(':').pop()`) — not `split(':'
 `run_eval.py` does not expose `--port` or `--host` as CLI flags. Configure them in your mode YAML under the `environment:` key:
 
 ```yaml
-# configs/modes/native_augment.yaml (or whichever mode you're running)
+# configs/modes/native.yaml
 environment:
   eval_server_port: 4849         # change if 4848 is already in use on the host
   eval_server_host: "0.0.0.0"   # bind all interfaces — needed for cross-container setups
@@ -234,10 +229,6 @@ Parse the port as the last colon-segment (`split(':').pop()`) — safe for both 
 ### Index caching
 
 SWE-bench repos repeat (Django has 200+ instances at different commits). The harness caches GitNexus indexes per `(repo, commit)` hash in `~/.gitnexus-eval-cache/` to avoid redundant re-indexing.
-
-### Grep augmentation (native_augment mode)
-
-When the agent runs `grep` or `rg`, the observation is post-processed: the agent class calls `gitnexus-augment` on the search pattern and appends `[GitNexus]` annotations showing callers, callees, and execution flows for matched symbols. This mirrors the Claude Code / Cursor hook integration.
 
 ## Adding Models
 

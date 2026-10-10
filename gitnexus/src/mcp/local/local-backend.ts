@@ -4368,6 +4368,9 @@ export class LocalBackend {
         target: params.target,
         direction: params.direction,
       };
+      if (params.target_uid !== undefined) impactArgs.target_uid = params.target_uid;
+      if (params.file_path !== undefined) impactArgs.file_path = params.file_path;
+      if (params.kind !== undefined) impactArgs.kind = params.kind;
       if (params.maxDepth !== undefined) impactArgs.maxDepth = params.maxDepth;
       if (params.crossDepth !== undefined) impactArgs.crossDepth = params.crossDepth;
       if (params.relationTypes !== undefined) impactArgs.relationTypes = params.relationTypes;

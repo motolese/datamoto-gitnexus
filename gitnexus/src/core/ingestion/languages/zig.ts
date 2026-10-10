@@ -17,6 +17,8 @@ import { zigMethodExtractor } from '../method-extractors/zig.js';
 import { getZigQueriesForRuntime } from '../tree-sitter-queries.js';
 import { typeConfig as zigConfig } from '../type-extractors/zig.js';
 import type { SyntaxNode } from '../utils/ast-helpers.js';
+import { emitZigScopeCaptures } from './zig/captures.js';
+import { interpretZigImport } from './zig/imports.js';
 
 const BUILT_INS: ReadonlySet<string> = new Set([
   'assert',
@@ -78,4 +80,9 @@ export const zigProvider = defineLanguage({
     },
   }),
   builtInNames: BUILT_INS,
+
+  // RFC #909 scope-resolution hooks. The resolver-side import and binding
+  // semantics live in `zig/scope-resolver.ts`.
+  emitScopeCaptures: emitZigScopeCaptures,
+  interpretImport: interpretZigImport,
 });

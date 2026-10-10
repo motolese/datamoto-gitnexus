@@ -6,7 +6,7 @@ Main entry point for running SWE-bench evaluations with and without GitNexus.
 Supports running a single configuration or a full matrix of models x modes.
 
 Usage:
-    # Single run (default: native_augment mode — GitNexus tools + grep enrichment)
+    # Single run (default: native mode — explicit GitNexus tools)
     python run_eval.py single -m claude-sonnet --subset lite --slice 0:5
 
     # Baseline comparison (no GitNexus)
@@ -350,7 +350,7 @@ def run_configuration(
 @app.command()
 def single(
     model: str = typer.Option(..., "-m", "--model", help=f"Model config name. Available: {', '.join(AVAILABLE_MODELS)}"),
-    mode: str = typer.Option("native_augment", "--mode", help=f"Evaluation mode. Available: {', '.join(AVAILABLE_MODES)}"),
+    mode: str = typer.Option("native", "--mode", help=f"Evaluation mode. Available: {', '.join(AVAILABLE_MODES)}"),
     subset: str = typer.Option("lite", "--subset", help="SWE-bench subset: lite, verified, full"),
     split: str = typer.Option("dev", "--split", help="Dataset split"),
     slice_spec: str = typer.Option("", "--slice", help="Slice spec (e.g., '0:5')"),
@@ -431,7 +431,7 @@ def matrix(
 @app.command()
 def debug(
     model: str = typer.Option("claude-haiku", "-m", "--model", help="Model config name"),
-    mode: str = typer.Option("native_augment", "--mode", help="Evaluation mode"),
+    mode: str = typer.Option("native", "--mode", help="Evaluation mode"),
     instance_id: str = typer.Option(..., "-i", "--instance", help="SWE-bench instance ID"),
     subset: str = typer.Option("lite", "--subset", help="SWE-bench subset"),
     split: str = typer.Option("dev", "--split"),
@@ -506,13 +506,8 @@ def _print_summary(results: list[dict], model: str, mode: str):
     gn_tool_calls = sum(
         r.get("gitnexus_metrics", {}).get("total_tool_calls", 0) for r in results
     )
-    gn_augment_hits = sum(
-        r.get("gitnexus_metrics", {}).get("augmentation_hits", 0) for r in results
-    )
     if gn_tool_calls > 0:
         table.add_row("GitNexus Tool Calls", str(gn_tool_calls))
-    if gn_augment_hits > 0:
-        table.add_row("Augmentation Hits", str(gn_augment_hits))
 
     console.print(table)
 

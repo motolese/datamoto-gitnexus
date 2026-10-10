@@ -28,9 +28,9 @@ For multi-step work, state up front:
 
 On long threads, *"Remember: apply all AGENTS.md rules"* re-weights these instructions against context dilution.
 
-## Claude Code hooks
+## Lifecycle callbacks
 
-**PreToolUse** hooks can block tools (e.g. `git_commit`) until checks pass. Adapt to this repo: `cd gitnexus && npm test` before commit.
+Do not register editor, Git, or session callbacks. Run required checks explicitly through the repository's delivery command.
 
 ## Context budget
 
@@ -76,7 +76,7 @@ commits, or posts.
 
 This project is indexed by GitNexus as **GitNexus** (26675 symbols, 35395 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-> Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
+> Index stale? Run `gitnexus analyze` explicitly from the project root.
 
 ## Always Do
 
@@ -169,10 +169,10 @@ npx gitnexus serve                         # HTTP API on port 4747 (from any ind
 - `npm run test:e2e` — Playwright (7 spec files; requires `gitnexus serve` + `npm run dev`)
 - `npx tsc -b --noEmit` — typecheck
 
-**Pre-commit hook** (`.husky/pre-commit`): formatting (prettier via lint-staged) + typecheck for staged packages. Tests do **not** run in pre-commit — CI only.
+No Git or editor callback runs verification. Formatting, typecheck, and tests are explicit delivery stages; CI is the independent remote verifier.
 
 ### Gotchas
 
 - `npm install` in `gitnexus/` triggers `prepare` (builds via `tsc`) and `postinstall` (materializes the vendored grammars into `node_modules/`, then prefers a committed prebuild per platform-arch and only source-builds when none matches). A C/C++ toolchain (`python3`, `make`, `g++`) is needed only for that source-build fallback.
 - The vendored grammars `tree-sitter-{c,dart,proto,swift,kotlin}` are handled uniformly: c is required; dart/proto/swift/kotlin are optional and skippable via `GITNEXUS_SKIP_OPTIONAL_GRAMMARS=1`. Install warnings appear only when no prebuild matches the platform-arch and no toolchain is present, and are non-fatal — only that language's parsing is unavailable.
-- ESLint configured via `eslint.config.mjs` (TS, React Hooks, unused-imports). No `npm run lint` script; use `npx eslint .`. Prettier runs via lint-staged. CI checks both in `ci-quality.yml`.
+- ESLint configured via `eslint.config.mjs` (TS, React Hooks, unused-imports). No `npm run lint` script; use `npx eslint .`. Run Prettier explicitly. CI checks both in `ci-quality.yml`.

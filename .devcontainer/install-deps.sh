@@ -12,7 +12,7 @@
 set -euo pipefail
 cd /workspace
 
-echo "[install-deps] 1/4: chown workspace node_modules + npm cache mount points"
+echo "[install-deps] 1/3: chown workspace node_modules + npm cache mount points"
 # The named volumes (workspace/*/node_modules and ~/.npm) are created at first
 # mount. They inherit ownership from the image's UID before realignment. Then
 # `updateRemoteUserUID: true` shifts the `node` user's UID. Now the volumes are
@@ -37,16 +37,8 @@ for d in /workspace/node_modules \
     sudo find "$d" -xdev -exec chown -h node:node {} +
 done
 
-echo "[install-deps] 2/4: clear stale .husky/_ runtime cache"
-# On Docker Desktop for Windows, the bind-mount permission translation won't let
-# the new container's `node` user overwrite a `.husky/_/h` file that an earlier
-# container wrote under a different UID. So we delete it. `.husky/_` is a
-# gitignored runtime cache, and husky rebuilds it during the root `npm install`.
-# Husky upstream has no fix for this UID clash.
-rm -rf .husky/_
-
-echo "[install-deps] 3/4: npm install at root, then gitnexus-shared (build required)"
-# Install order matters. Root goes first, for lint-staged, husky, and prettier.
+echo "[install-deps] 2/3: npm install at root, then gitnexus-shared (build required)"
+# Install order matters. Root goes first for repository tooling and prettier.
 # Then gitnexus-shared, which must be built before installing gitnexus-web or
 # gitnexus. Both of those depend on it via `file:../gitnexus-shared`.
 npm install
@@ -54,7 +46,7 @@ cd /workspace/gitnexus-shared
 npm install
 npm run build
 
-echo "[install-deps] 4/4: npm install gitnexus-web, then gitnexus"
+echo "[install-deps] 3/3: npm install gitnexus-web, then gitnexus"
 # gitnexus-web goes before gitnexus. The gitnexus `prepare` script runs
 # scripts/build.js, which compiles gitnexus-web when that directory is present.
 # In the devcontainer the whole workspace is bind-mounted, so gitnexus-web/ is

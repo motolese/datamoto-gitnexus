@@ -95,6 +95,22 @@ function clampCrossDepth(raw: unknown): { depth: number; warning?: string } {
   return { depth: d };
 }
 
+function parseOptionalBoundedString(
+  params: Record<string, unknown>,
+  key: 'target_uid' | 'file_path' | 'kind',
+  maxLength: number,
+): { ok: true; value?: string } | { ok: false; error: string } {
+  const raw = params[key];
+  if (raw === undefined) return { ok: true };
+  if (typeof raw !== 'string') return { ok: false, error: `${key} must be a string` };
+  const value = raw.trim();
+  if (!value) return { ok: false, error: `${key} must not be empty` };
+  if (value.length > maxLength) {
+    return { ok: false, error: `${key} must not exceed ${maxLength} characters` };
+  }
+  return { ok: true, value };
+}
+
 /**
  * Clamp the impact timeout to a sane bounded range. Callers can feed this
  * via tool params, so an unclamped value lets a single request hold a
@@ -120,6 +136,9 @@ export function validateGroupImpactParams(params: Record<string, unknown>):
       name: string;
       repoPath: string;
       target: string;
+      target_uid?: string;
+      file_path?: string;
+      kind?: string;
       direction: 'upstream' | 'downstream';
       maxDepth: number;
       crossDepth: number;
@@ -139,6 +158,13 @@ export function validateGroupImpactParams(params: Record<string, unknown>):
   if (!repoPath)
     return { ok: false, error: 'repo is required (group repo path, e.g. app/backend)' };
   if (!target) return { ok: false, error: 'target is required' };
+
+  const parsedTargetUid = parseOptionalBoundedString(params, 'target_uid', 4096);
+  if ('error' in parsedTargetUid) return { ok: false, error: parsedTargetUid.error };
+  const parsedFilePath = parseOptionalBoundedString(params, 'file_path', 4096);
+  if ('error' in parsedFilePath) return { ok: false, error: parsedFilePath.error };
+  const parsedKind = parseOptionalBoundedString(params, 'kind', 128);
+  if ('error' in parsedKind) return { ok: false, error: parsedKind.error };
   if (
     params.service !== undefined &&
     params.service !== null &&
@@ -185,6 +211,9 @@ export function validateGroupImpactParams(params: Record<string, unknown>):
     name,
     repoPath,
     target,
+    target_uid: parsedTargetUid.value,
+    file_path: parsedFilePath.value,
+    kind: parsedKind.value,
     direction,
     maxDepth,
     crossDepth,
@@ -401,6 +430,9 @@ export async function runGroupImpact(
     name,
     repoPath,
     target,
+    target_uid,
+    file_path,
+    kind,
     direction,
     maxDepth,
     crossDepth: _crossDepth,
@@ -428,6 +460,9 @@ export async function runGroupImpact(
 
   const impactParams: Parameters<GroupToolPort['impact']>[1] = {
     target,
+    target_uid,
+    file_path,
+    kind,
     direction,
     maxDepth,
     relationTypes: relationTypes && relationTypes.length > 0 ? relationTypes : undefined,

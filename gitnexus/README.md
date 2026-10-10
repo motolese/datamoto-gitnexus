@@ -22,7 +22,7 @@ AI coding tools don't understand your codebase structure. They edit a function w
 npx gitnexus analyze
 ```
 
-That's it. This indexes the codebase, installs agent skills, registers Claude Code hooks, and creates `AGENTS.md` / `CLAUDE.md` context files — all in one command.
+That's it. This indexes the codebase, installs agent skills, and creates `AGENTS.md` / `CLAUDE.md` context files. It does not register lifecycle callbacks.
 
 > **On npm 11.x?** `npx` can crash during install (`Cannot destructure property 'package' of 'node.target'`). Use the pnpm form instead:
 >
@@ -38,16 +38,16 @@ To configure MCP for your editor, run `npx gitnexus setup` once — or set it up
 
 ### Editor Support
 
-| Editor                   | MCP | Skills | Hooks (auto-augment)                                                                       | Support      |
-| ------------------------ | --- | ------ | ------------------------------------------------------------------------------------------ | ------------ |
-| **Claude Code**          | Yes | Yes    | Yes (PreToolUse)                                                                           | **Full**     |
-| **Cursor**               | Yes | Yes    | Yes (postToolUse, [manual install](../gitnexus-cursor-integration/README.md#hook-install)) | **Full**     |
-| **Antigravity** (Google) | Yes | Yes    | Yes (AfterTool, [Gemini CLI hooks schema](https://geminicli.com/docs/hooks/reference/))    | **Full**     |
-| **Codex**                | Yes | Yes    | —                                                                                          | MCP + Skills |
-| **Windsurf**             | Yes | —      | —                                                                                          | MCP          |
-| **OpenCode**             | Yes | Yes    | —                                                                                          | MCP + Skills |
+| Editor                   | MCP | Skills | Support      |
+| ------------------------ | --- | ------ | ------------ |
+| **Claude Code**          | Yes | Yes    | **Full**     |
+| **Cursor**               | Yes | Yes    | **Full**     |
+| **Antigravity** (Google) | Yes | Yes    | **Full**     |
+| **Codex**                | Yes | Yes    | MCP + Skills |
+| **Windsurf**             | Yes | —      | MCP          |
+| **OpenCode**             | Yes | Yes    | MCP + Skills |
 
-> **Claude Code** gets the deepest integration: MCP tools + agent skills + PreToolUse hooks that automatically enrich grep/glob/bash calls with knowledge graph context.
+GitNexus integrations are explicit: MCP, skills, and `gitnexus analyze`. Setup does not register editor, Git, or session callbacks.
 
 ### Community Integrations
 
@@ -59,7 +59,7 @@ To configure MCP for your editor, run `npx gitnexus setup` once — or set it up
 
 If you prefer to configure manually instead of using `gitnexus setup`:
 
-### Claude Code (full support — MCP + skills + hooks)
+### Claude Code (full support — MCP + skills)
 
 ```bash
 # macOS / Linux
@@ -159,7 +159,7 @@ Your AI agent gets these tools automatically:
 
 ```bash
 gitnexus setup                   # Configure MCP for your editors (one-time)
-gitnexus uninstall               # Preview removal of GitNexus MCP/skills/hooks (add --force to apply)
+gitnexus uninstall               # Preview removal of GitNexus MCP/skills and legacy callback residue
 gitnexus analyze [path]          # Index a repository (or update stale index)
 gitnexus analyze --repair-fts    # Fast path: rebuild/verify only FTS indexes on existing index data
 gitnexus analyze --force         # Full rebuild: re-parse + graph rebuild + FTS rebuild
@@ -197,7 +197,7 @@ gitnexus group query <name> <q>  # Search execution flows across all repos in a 
 gitnexus group status <name>     # Check staleness of repos in a group
 ```
 
-> **`gitnexus uninstall`** reverses `gitnexus setup` — it removes the GitNexus MCP entries, hooks, and skill directories it added to each detected editor. Skill directories are identified **by bundled gitnexus skill name** (e.g. `gitnexus-cli/`), so if you customized files inside an installed skill directory, back them up first. It is a dry-run preview by default and prints the exact paths it would remove; pass `--force` to apply. Per-repo indexes (`gitnexus clean --all`) and the global npm package (`npm uninstall -g gitnexus`) are left for you to remove.
+> **`gitnexus uninstall`** removes GitNexus MCP entries and skill directories. It also cleans callback residue from older releases. Skill directories are identified **by bundled gitnexus skill name** (e.g. `gitnexus-cli/`), so if you customized files inside an installed skill directory, back them up first. It is a dry-run preview by default and prints the exact paths it would remove; pass `--force` to apply. Per-repo indexes (`gitnexus clean --all`) and the global npm package (`npm uninstall -g gitnexus`) are left for you to remove.
 
 ## Remote Embeddings
 
@@ -435,26 +435,6 @@ After scope resolution, analyze prunes inert block-local value symbols (a functi
 | `GITNEXUS_KEEP_LOCAL_VALUE_SYMBOLS`  | unset   | Set to `1`/`true` to keep inert block-local value symbols instead of pruning them.                      |
 
 Programmatic callers can pass `keepLocalValueSymbols: true` in `PipelineOptions` instead of setting the env var.
-
-### Hook augmentation/notifications are silently skipped
-
-The Claude Code / Antigravity hooks intentionally stay **silent** on normal skip
-paths so strict hook runners (e.g. Codex `PreToolUse`) never see unexpected
-output. A search may not be augmented — or a stale-index reminder may not appear
-on stderr — when the GitNexus MCP server owns the repo DB, when the DB-lock probe
-times out and fails closed, or when the index is already current.
-
-To see why a hook skipped, set `GITNEXUS_DEBUG=1` and re-run the action — the hook
-writes the reason (e.g. `[GitNexus] augment skipped: MCP server owns DB`) and the
-stale-index hint to its stderr:
-
-```bash
-GITNEXUS_DEBUG=1 <your command>   # surfaces hook skip/diagnostic reasons on stderr
-```
-
-Only `GITNEXUS_DEBUG=1` and `GITNEXUS_DEBUG=true` enable diagnostics; every other
-value (including `0` and `false`) is treated as off. Diagnostics go to stderr
-only — the hook's structured stdout (the JSON the agent consumes) is unaffected.
 
 ## Privacy
 

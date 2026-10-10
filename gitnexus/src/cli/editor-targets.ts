@@ -2,14 +2,10 @@
  * Editor targets — the single source of truth for *where* GitNexus writes its
  * per-editor configuration and *how* its entries are identified.
  *
- * `setup` (writes these) and `uninstall` (removes them) both consume this
- * module so the two stay structurally in lock-step: add or change a target
- * here and both sides follow. This is declarative metadata only — file
- * locations, JSON key paths, hook event names, command needles, and script
- * directories, plus the shared `detectIndentation` formatting helper. The
- * format-specific read/write logic (JSONC merge, TOML upsert, OpenCode's flat
- * command array, Gemini's hook schema) deliberately stays in setup.ts /
- * uninstall.ts.
+ * `setup` writes MCP and skill targets. `uninstall` consumes those same
+ * targets and also recognizes callback registrations left by releases that
+ * predate the zero-hook contract. This module is declarative metadata only;
+ * active setup never consumes the legacy callback targets.
  *
  * The `setup → uninstall` round-trip integration test verifies the two
  * implementations remain behaviourally symmetrical on top of this shared
@@ -62,7 +58,7 @@ export interface HookTarget {
   events: string[];
   /** Substring identifying the gitnexus command within a hook entry. */
   needle: string;
-  /** Absolute path to the bundled hook-script directory setup writes. */
+  /** Absolute path to a script directory written by historical releases. */
   scriptDir: string;
 }
 
@@ -73,7 +69,7 @@ export interface EditorTargets {
   codex: CodexMcpTarget;
   /** Skill install directories, one per editor that supports skills. */
   skills: SkillTarget[];
-  /** Hook registrations + their bundled script directories. */
+  /** Legacy registrations retained only so uninstall can remove them. */
   hooks: HookTarget[];
 }
 

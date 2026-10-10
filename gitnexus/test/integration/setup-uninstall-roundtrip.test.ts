@@ -25,21 +25,6 @@ function valueAtPath(obj: any, keyPath: string[]): unknown {
   return keyPath.reduce((o: any, k) => (o == null ? undefined : o[k]), obj);
 }
 
-/** Does any of `events` hold a hook entry whose command contains `needle`? */
-function hasHookNeedle(settings: any, events: string[], needle: string): boolean {
-  return events.some(
-    (ev) =>
-      Array.isArray(settings?.hooks?.[ev]) &&
-      settings.hooks[ev].some(
-        (entry: any) =>
-          Array.isArray(entry?.hooks) &&
-          entry.hooks.some(
-            (h: any) => typeof h?.command === 'string' && h.command.includes(needle),
-          ),
-      ),
-  );
-}
-
 async function exists(p: string): Promise<boolean> {
   try {
     await fs.access(p);
@@ -138,13 +123,15 @@ describe('setup → uninstall round-trip', () => {
         ).toBe(true);
       }
     }
-    for (const h of targets.hooks) {
-      const settings = await readJsonc(h.settingsFile);
+    for (const legacy of targets.hooks) {
       expect(
-        hasHookNeedle(settings, h.events, h.needle),
-        `setup should register ${h.label} hook`,
-      ).toBe(true);
-      expect(await exists(h.scriptDir), `setup should install ${h.label} hook scripts`).toBe(true);
+        await exists(legacy.settingsFile),
+        `setup must not create ${legacy.label} callback settings`,
+      ).toBe(false);
+      expect(
+        await exists(legacy.scriptDir),
+        `setup must not install ${legacy.label} callback scripts`,
+      ).toBe(false);
     }
 
     // ── Round-trip: uninstall removes everything setup wrote ──
@@ -166,37 +153,18 @@ describe('setup → uninstall round-trip', () => {
         ).toBe(false);
       }
     }
-    for (const h of targets.hooks) {
-      const settings = await readJsonc(h.settingsFile);
-      expect(
-        hasHookNeedle(settings, h.events, h.needle),
-        `uninstall should remove ${h.label} hook`,
-      ).toBe(false);
-      expect(await exists(h.scriptDir), `uninstall should remove ${h.label} hook scripts`).toBe(
-        false,
-      );
-    }
   });
 
-  it('uninstall preserves a co-located user MCP server and hook', async () => {
+  it('uninstall preserves a co-located user MCP server', async () => {
     const targets = getEditorTargets(tempHome);
     const { setupCommand } = await import('../../src/cli/setup.js');
     await setupCommand();
 
-    // Add a user-owned MCP server alongside gitnexus in Cursor's config, and a
-    // user hook alongside gitnexus in Claude's PreToolUse.
+    // Add a user-owned MCP server alongside gitnexus in Cursor's config.
     const cursor = targets.mcpJsonc.find((t) => t.id === 'cursor')!;
     const cursorCfg = await readJsonc(cursor.file);
     cursorCfg.mcpServers.mine = { command: 'mine' };
     await fs.writeFile(cursor.file, JSON.stringify(cursorCfg, null, 2), 'utf-8');
-
-    const claudeHook = targets.hooks.find((h) => h.id === 'claude')!;
-    const settings = await readJsonc(claudeHook.settingsFile);
-    settings.hooks.PreToolUse.push({
-      matcher: 'Read',
-      hooks: [{ type: 'command', command: 'my-own-hook' }],
-    });
-    await fs.writeFile(claudeHook.settingsFile, JSON.stringify(settings, null, 2), 'utf-8');
 
     const { uninstallCommand } = await import('../../src/cli/uninstall.js');
     await uninstallCommand({ force: true });
@@ -205,11 +173,5 @@ describe('setup → uninstall round-trip', () => {
     expect(afterCursor.mcpServers.gitnexus).toBeUndefined();
     expect(afterCursor.mcpServers.mine).toEqual({ command: 'mine' });
 
-    const afterSettings = await readJsonc(claudeHook.settingsFile);
-    const userHookSurvives = afterSettings.hooks.PreToolUse.some((e: any) =>
-      e.hooks?.some((h: any) => h.command === 'my-own-hook'),
-    );
-    expect(userHookSurvives).toBe(true);
-    expect(hasHookNeedle(afterSettings, claudeHook.events, claudeHook.needle)).toBe(false);
   });
 });

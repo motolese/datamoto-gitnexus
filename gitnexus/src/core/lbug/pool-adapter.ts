@@ -97,10 +97,7 @@ interface SharedDB {
 const dbCache = new Map<string, SharedDB>();
 
 /**
-<<<<<<< HEAD
- * bitcoinize-ai #324 — env-tunable pool sizing.
-=======
->>>>>>> pr/treesitter025-upgrade
+ * Env-tunable pool sizing (bitcoinize-ai #324).
  * Parse a positive integer from process.env, fall back to the default.
  */
 function envInt(name: string, defaultValue: number): number {
@@ -111,31 +108,19 @@ function envInt(name: string, defaultValue: number): number {
 }
 
 /**
- * Max repos in the pool (LRU eviction).
-<<<<<<< HEAD
- * #324: lowered 5 → 3.
-=======
->>>>>>> pr/treesitter025-upgrade
+ * Max repos in the pool (LRU eviction; #324 lowered the default 5 → 3).
  * Env: GITNEXUS_MAX_POOL_SIZE
  */
 const MAX_POOL_SIZE = envInt('GITNEXUS_MAX_POOL_SIZE', 3);
 /** Idle timeout before closing a repo's connections. Env: GITNEXUS_IDLE_TIMEOUT_MS */
 const IDLE_TIMEOUT_MS = envInt('GITNEXUS_IDLE_TIMEOUT_MS', 5 * 60 * 1000);
 /**
- * Max connections per repo (caps concurrent queries per repo).
-<<<<<<< HEAD
- * #324: lowered 8 → 2.
-=======
->>>>>>> pr/treesitter025-upgrade
+ * Max connections per repo (caps concurrent queries per repo; #324 lowered 8 → 2).
  * Env: GITNEXUS_MAX_CONNS_PER_REPO
  */
 const MAX_CONNS_PER_REPO = envInt('GITNEXUS_MAX_CONNS_PER_REPO', 2);
 /**
-<<<<<<< HEAD
- * #324: max concurrent initLbug calls.
-=======
- * Max concurrent initLbug calls.
->>>>>>> pr/treesitter025-upgrade
+ * Max concurrent initLbug calls (#324).
  * Env: GITNEXUS_INIT_CONCURRENCY
  */
 const INIT_CONCURRENCY = envInt('GITNEXUS_INIT_CONCURRENCY', 1);
@@ -198,29 +183,13 @@ let stdoutSilenceCount = 0;
 /** True while pre-warming connections — prevents watchdog from prematurely restoring stdout */
 let preWarmActive = false;
 
-/** Global semaphore for initLbug. Bounds peak native allocation. */
-let activeInitCount = 0;
-const initWaiters: Array<() => void> = [];
-
-function acquireInitSlot(): Promise<void> {
-  if (activeInitCount < INIT_CONCURRENCY) {
-    activeInitCount++;
-    return Promise.resolve();
-  }
-  return new Promise<void>((resolve) => {
-    initWaiters.push(() => {
-      activeInitCount++;
-      resolve();
-    });
-  });
-}
-
-function releaseInitSlot(): void {
-  activeInitCount--;
-  if (activeInitCount < 0) activeInitCount = 0;
-  const next = initWaiters.shift();
-  if (next) next();
-}
+// The initLbug semaphore (activeInitCount / initWaiters / acquireInitSlot /
+// releaseInitSlot) is declared ONCE above, tagged #324. The merge that brought
+// in the stdio-capture leaf re-export duplicated the whole block here verbatim,
+// which is a hard SyntaxError ("Identifier 'activeInitCount' has already been
+// declared") — it killed every gitnexus query command (impact/context/cypher/
+// query) while `analyze` still worked, because only the query path loads this
+// module. Removed the duplicate; the #324 original above is the single source.
 
 /**
  * Start the idle cleanup timer (runs every 60s)
@@ -593,12 +562,8 @@ export const initLbug = async (repoId: string, dbPath: string): Promise<void> =>
   const pending = initPromises.get(repoId);
   if (pending) return pending;
 
-<<<<<<< HEAD
-  // bitcoinize-ai #324: serialize cold-start of different repos via the
-  // INIT_CONCURRENCY semaphore.
-=======
-  // Serialize cold-start of different repos via the INIT_CONCURRENCY semaphore.
->>>>>>> pr/treesitter025-upgrade
+  // Serialize cold-start of different repos via the INIT_CONCURRENCY semaphore
+  // (bitcoinize-ai #324).
   const promise = (async () => {
     await acquireInitSlot();
     try {
@@ -688,19 +653,11 @@ async function doInitLbug(repoId: string, dbPath: string): Promise<void> {
   shared.refCount++;
   const db = shared.db;
 
-<<<<<<< HEAD
-  // bitcoinize-ai #327: pre-warm exactly 1 connection. Subsequent conns
-  // are lazily created in checkout() up to MAX_CONNS_PER_REPO. Cuts cold-
-  // start memory by ~165 MB × (MAX_CONNS_PER_REPO - 1) per repo for the
-  // common single-threaded query workload. Lazy expansion is safe because
-  // silenceStdout is reference-counted; see comment in checkout().
-=======
   // Pre-warm exactly 1 connection. Subsequent conns are lazily created in
   // checkout() up to MAX_CONNS_PER_REPO. Cuts cold-start memory by ~165 MB
   // × (MAX_CONNS_PER_REPO - 1) per repo for the common single-threaded
   // query workload. Lazy expansion is safe because silenceStdout is
-  // reference-counted; see comment in checkout().
->>>>>>> pr/treesitter025-upgrade
+  // reference-counted; see comment in checkout() (bitcoinize-ai #327).
   preWarmActive = true;
   const available: lbug.Connection[] = [];
   try {
@@ -768,13 +725,8 @@ export async function initLbugWithDb(
   }
   shared.refCount++;
 
-<<<<<<< HEAD
-  // bitcoinize-ai #327: pre-warm 1 conn; checkout() lazily expands to
-  // MAX_CONNS_PER_REPO. Matches doInitLbug for consistency.
-=======
   // Pre-warm 1 conn; checkout() lazily expands to MAX_CONNS_PER_REPO.
-  // Matches doInitLbug for consistency.
->>>>>>> pr/treesitter025-upgrade
+  // Matches doInitLbug for consistency (bitcoinize-ai #327).
   const available: lbug.Connection[] = [];
   preWarmActive = true;
   try {
@@ -815,15 +767,9 @@ function checkout(entry: PoolEntry): Promise<lbug.Connection> {
     return Promise.resolve(entry.available.pop()!);
   }
 
-<<<<<<< HEAD
-  // bitcoinize-ai #327: lazy expansion. doInitLbug pre-warms only 1
-  // connection (down from MAX_CONNS_PER_REPO). Subsequent concurrent
-  // queries trigger on-demand connection creation up to the cap.
-=======
   // Lazy expansion: doInitLbug pre-warms only 1 connection (down from
   // MAX_CONNS_PER_REPO). Subsequent concurrent queries trigger on-demand
-  // connection creation up to the cap.
->>>>>>> pr/treesitter025-upgrade
+  // connection creation up to the cap (bitcoinize-ai #327).
   const totalConns = entry.available.length + entry.checkedOut;
   if (totalConns < MAX_CONNS_PER_REPO) {
     preWarmActive = true;

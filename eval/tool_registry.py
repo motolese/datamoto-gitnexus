@@ -66,13 +66,6 @@ payload="{\"query\": \"$query\"}"''',
         payload_builder='payload="{}"',
         fallback='cd /testbed && npx gitnexus list 2>&1',
     ),
-    "augment": ToolScriptSpec(
-        key="augment",
-        bin_name="gitnexus-augment",
-        endpoint=None,
-        payload_builder="",
-        fallback='cd /testbed && npx gitnexus augment "$1" 2>&1 || true',
-    ),
 }
 
 BINARIES_BY_KEY: Dict[str, str] = {spec.key: spec.bin_name for spec in TOOL_SPECS.values()}

@@ -117,7 +117,7 @@ export const en = {
   'help.command.setup.description':
     'One-time setup: configure MCP for Cursor, Claude Code, OpenCode, Codex',
   'help.command.uninstall.description':
-    'Reverse `setup`: remove GitNexus MCP entries, skills, and hooks from all detected editors',
+    'Remove GitNexus MCP entries, skills, and callback residue from older releases',
   'help.command.analyze.description': 'Index a repository (full analysis)',
   'help.command.index.description':
     'Register an existing .gitnexus/ folder into the global registry (no re-analysis needed)',
@@ -131,8 +131,6 @@ export const en = {
   'help.command.remove.description':
     'Delete the GitNexus index for a registered repo (by alias, name, or absolute path). Unlike `clean`, does not require being inside the repo. Idempotent on unknown targets.',
   'help.command.wiki.description': 'Generate repository wiki from knowledge graph',
-  'help.command.augment.description':
-    'Augment a search pattern with knowledge graph context (used by hooks)',
   'help.command.publish.description':
     'Notify the understand-quickly registry that this repo has a fresh GitNexus index. Opt-in: requires UNDERSTAND_QUICKLY_TOKEN (fine-grained PAT with `Repository dispatches: write` on looptech-ai/understand-quickly). No-op without the token. See https://github.com/looptech-ai/understand-quickly.',
   'help.command.query.description':

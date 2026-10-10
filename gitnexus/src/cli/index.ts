@@ -26,7 +26,7 @@ program
 program
   .command('uninstall')
   .description(
-    'Reverse `setup`: remove GitNexus MCP entries, skills, and hooks from all detected editors',
+    'Remove GitNexus MCP entries, skills, and callback residue from older releases',
   )
   .option('-f, --force', 'Apply the changes (default is a dry-run preview)')
   .action(createLazyAction(() => import('./uninstall.js'), 'uninstallCommand'));
@@ -198,11 +198,6 @@ program
     'Output language for generated documentation (e.g. english, chinese, spanish, japanese)',
   )
   .action(createLbugLazyAction(() => import('./wiki.js'), 'wikiCommand'));
-
-program
-  .command('augment <pattern>')
-  .description('Augment a search pattern with knowledge graph context (used by hooks)')
-  .action(createLbugLazyAction(() => import('./augment.js'), 'augmentCommand'));
 
 program
   .command('publish [path]')

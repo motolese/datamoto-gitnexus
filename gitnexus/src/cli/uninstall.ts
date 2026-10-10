@@ -1,19 +1,17 @@
 /**
  * Uninstall Command
  *
- * Reverses `gitnexus setup`: removes the GitNexus MCP server entries,
- * skills, and hooks that setup writes into each detected AI editor's
- * global configuration. The set of targets (paths, key paths, hook events,
- * needles, script dirs) is shared with setup.ts via editor-targets.ts, so the
- * two stay in lock-step.
+ * Reverses `gitnexus setup`: removes GitNexus MCP entries and skills from each
+ * detected AI editor. It also removes callback registrations and script
+ * directories left by releases that predate the zero-hook contract.
  *
  * Surgical and idempotent: only gitnexus-owned keys/entries/dirs are
- * removed. Unrelated user config (other MCP servers, other hooks, JSONC
+ * removed. Unrelated user config (other MCP servers, other callbacks, JSONC
  * comments, indentation) is preserved. Files that are absent or that
  * never contained a gitnexus entry are left untouched.
  *
  * Ownership is by name: skill directories are matched by the bundled gitnexus
- * skill names, MCP entries by the `gitnexus` key, hooks by the gitnexus command
+ * skill names, MCP entries by the `gitnexus` key, legacy callbacks by the GitNexus command
  * needle. There is no per-install provenance marker yet (a user dir that
  * happens to share a bundled skill name, or files a user added inside an
  * installed skill dir, are matched purely by name) — which is why uninstall is
@@ -93,11 +91,9 @@ async function removeJsoncKey(
 }
 
 /**
- * Remove the gitnexus hook command(s) — those whose command string contains
+ * Remove historical GitNexus callback command(s) — those whose command string contains
  * `commandNeedle` — from the given `eventNames` arrays in a JSONC settings
- * file. Mirrors the idempotency probes in setup.ts (hasGitnexusHook /
- * geminiHasGitnexusHook). Returns how many event entries contained a gitnexus
- * command.
+ * file. Returns how many event entries contained a GitNexus command.
  *
  * Removal is element-granular to honor the "other hooks are preserved"
  * contract: only the matching command object inside an entry's `hooks[]` is
@@ -439,7 +435,7 @@ export const uninstallCommand = async (options?: { force?: boolean }) => {
 
   await uninstallCodex(result, dryRun, targets.codex.configFile, targets.codex.tomlSection);
 
-  // ─── Hooks ───────────────────────────────────────────────────────
+  // ─── Legacy callback cleanup ─────────────────────────────────────
   for (const hook of targets.hooks) {
     try {
       const { status, count } = await removeHookEntries(

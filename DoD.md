@@ -119,7 +119,7 @@ Run the commands relevant to the touched area. If something cannot be run in the
 
 - [ ] `cd gitnexus && npx tsc --noEmit`
 - [ ] `cd gitnexus && npm test`
-- [ ] `cd gitnexus && npx prettier --check .` for files in the diff (pre-commit runs the affected-tests subset; do not expand scope)
+- [ ] `cd gitnexus && npx prettier --check .` for files in the diff
 
 ### 4.3 If `gitnexus-web/` changed
 

@@ -681,6 +681,63 @@ describe('LocalBackend.callTool', () => {
     }
   });
 
+  it('group impact dispatch preserves exact disambiguators', async () => {
+    const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'gnx-group-dispatch-'));
+    const groupDir = path.join(tmpDir, 'groups', 'g1');
+    mkdirSync(groupDir, { recursive: true });
+    writeFileSync(
+      path.join(groupDir, 'group.yaml'),
+      `version: 1
+name: g1
+description: ""
+repos:
+  providers/ingest: datamoto-ingest
+links: []
+packages: {}
+detect:
+  http: true
+  grpc: true
+  topics: true
+  shared_libs: true
+  embedding_fallback: true
+matching:
+  bm25_threshold: 0.7
+  embedding_threshold: 0.65
+  max_candidates_per_step: 3
+`,
+    );
+    vi.stubEnv('GITNEXUS_HOME', tmpDir);
+    const groupImpact = vi.fn(async () => ({ ok: true }));
+    vi.spyOn(backend as any, 'refreshRepos').mockResolvedValue(undefined);
+    vi.spyOn(backend as any, 'getGroupService').mockReturnValue({ groupImpact });
+
+    try {
+      await backend.callTool('impact', {
+        repo: '@g1/providers/ingest',
+        target: 'extract',
+        target_uid: 'Function:src/extract.ts:extract',
+        file_path: 'src/extract.ts',
+        kind: 'Function',
+        direction: 'upstream',
+      });
+
+      expect(groupImpact).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'g1',
+          repo: 'providers/ingest',
+          target: 'extract',
+          target_uid: 'Function:src/extract.ts:extract',
+          file_path: 'src/extract.ts',
+          kind: 'Function',
+          direction: 'upstream',
+        }),
+      );
+    } finally {
+      vi.unstubAllEnvs();
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('dispatches impact tool', async () => {
     // impact() calls executeParameterized to find target, then executeQuery for traversal
     (executeParameterized as any).mockResolvedValue([

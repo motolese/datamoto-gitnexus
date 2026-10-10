@@ -43,17 +43,11 @@ cd gitnexus && npx tsc --noEmit && npm test
 cd ../gitnexus-web && npx tsc -b --noEmit && npm test
 ```
 
-## Pre-commit hook
+## Explicit verification
 
-A husky pre-commit hook (`.husky/pre-commit`) runs automatically on every `git commit`:
-
-1. **Formatting** — `lint-staged` runs prettier on staged files
-2. **`gitnexus-web/` files staged** → `tsc -b --noEmit`
-3. **`gitnexus/` files staged** → `tsc --noEmit`
-
-Tests do **not** run in the pre-commit hook — they run in CI (`ci-tests.yml`) only.
-
-Skip with `git commit --no-verify` (use sparingly).
+No Git or editor callback runs checks implicitly. Run the package-specific
+format, typecheck, and test commands above through the repository delivery
+workflow; CI remains the independent remote verifier.
 
 ## Vitest projects
 

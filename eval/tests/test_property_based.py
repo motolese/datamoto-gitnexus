@@ -10,12 +10,8 @@ from utils.errors import sanitize_exception
 
 
 KNOWN_MODES = [
-    "native_augment",
     "native",
     "baseline",
-    "mcp",
-    "augment",
-    "full",
 ]
 
 

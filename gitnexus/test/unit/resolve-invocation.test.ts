@@ -10,71 +10,14 @@ import {
   warnIfNpm11NpxRisk,
   NPX_REF,
 } from '../../src/cli/resolve-invocation.js';
+import * as cjs from '../../src/cli/resolve-invocation.js';
 import { readFileSync, mkdtempSync, writeFileSync, chmodSync, rmSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import os from 'node:os';
 
 const mockedExec = vi.mocked(execFileSync);
 
-const cjsRequire = createRequire(import.meta.url);
-const CANONICAL_CJS = path.resolve(
-  __dirname,
-  '..',
-  '..',
-  'hooks',
-  'claude',
-  'resolve-analyze-cmd.cjs',
-);
-const PLUGIN_CJS = path.resolve(
-  __dirname,
-  '..',
-  '..',
-  '..',
-  'gitnexus-claude-plugin',
-  'hooks',
-  'resolve-analyze-cmd.cjs',
-);
-
-interface CjsModule {
-  formatAnalyzeCommand: (
-    o?: { embeddings?: boolean },
-    deps?: { npmMajor?: number | null; pnpmMajor?: number | null; pnpmMinor?: number | null },
-  ) => string;
-  formatDocumentationDlxCommand: (args: string, o?: { embeddings?: boolean }) => string;
-  formatPnpmAllowBuildArgs: (
-    o?: { embeddings?: boolean; alwaysAllowBuild?: boolean },
-    deps?: { pnpmMajor?: number | null; pnpmMinor?: number | null },
-  ) => string[];
-  resolveInvocationMode: (
-    probe?: (command: string, gitnexusWrapper?: boolean) => string | null,
-    deps?: { npmMajor?: number | null; pnpmMajor?: number | null; pnpmPresent?: boolean },
-  ) => 'gitnexus' | 'pnpm' | 'npx';
-  resolveOnPath: (
-    command: string,
-    preferExecExt?: boolean,
-    opts?: { platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv },
-  ) => string | null;
-  buildRunnerArgv: (
-    mode: 'gitnexus' | 'pnpm' | 'npx',
-    gitnexusArgs: string[],
-    deps?: { pnpmMajor?: number | null; pnpmMinor?: number | null },
-  ) => { program: string; args: string[] };
-  NPX_REF: string;
-}
-
-// Require the real shipped artifact — the hook runtime loads this exact file, so
-// the tests exercise production code, not a TypeScript mirror of it.
-//
-// Determinism invariant: createRequire bypasses vitest's node:child_process mock,
-// so the only live subprocess this module can run is probeVersion (`npm`/`pnpm
-// --version`). resolveOnPath is now spawn-free — a pure PATH scan — so tests pin
-// it by passing an injected `{ platform, env }` (never the host PATH). Mode tests
-// inject a fake `probe` or force GITNEXUS_INVOCATION; version tests inject `deps`.
-// Keep new tests on one of those paths so results never depend on the host.
-const cjs = cjsRequire(CANONICAL_CJS) as CjsModule;
-
-describe('resolve-analyze-cmd.cjs (canonical invocation resolver)', () => {
+describe('explicit invocation resolver', () => {
   afterEach(() => {
     delete process.env.GITNEXUS_INVOCATION;
   });
@@ -531,12 +474,6 @@ describe('formatAnalyzeCommand end-to-end via the pure scan (#1938)', () => {
     // would have ENOENT'd here; the pure scan finds the launcher directly.
     process.env.PATH = binDir;
     expect(cjs.formatAnalyzeCommand()).toBe('gitnexus analyze');
-  });
-});
-
-describe('resolve-analyze-cmd.cjs parity', () => {
-  it('keeps the two CJS hook copies byte-identical', () => {
-    expect(readFileSync(CANONICAL_CJS, 'utf-8')).toBe(readFileSync(PLUGIN_CJS, 'utf-8'));
   });
 });
 

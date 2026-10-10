@@ -82,12 +82,8 @@ def parse_run_id(run_id: str) -> tuple[str, str]:
     """Parse 'model_mode' into (model, mode) using known suffixes."""
     # Match the longest known suffix first to avoid hyphen collisions in model names.
     known_modes = [
-        "native_augment",
         "native",
         "baseline",
-        "mcp",
-        "augment",
-        "full",
     ]
     for mode in known_modes:
         suffix = f"_{mode}"
@@ -109,8 +105,6 @@ def compute_metrics(run_data: dict) -> dict:
     costs = []
     api_calls = []
     gn_tool_calls = []
-    gn_augment_hits = []
-    gn_augment_calls = []
 
     for instance_id, traj in trajectories.items():
         info = traj.get("info", {})
@@ -121,8 +115,6 @@ def compute_metrics(run_data: dict) -> dict:
         gn = info.get("gitnexus", {}).get("metrics", {})
         if gn:
             gn_tool_calls.append(gn.get("total_tool_calls", 0))
-            gn_augment_hits.append(gn.get("augmentation_hits", 0))
-            gn_augment_calls.append(gn.get("augmentation_calls", 0))
 
     # Also try summary-level metrics
     if not costs and summary:
@@ -133,8 +125,6 @@ def compute_metrics(run_data: dict) -> dict:
             gn = r.get("gitnexus_metrics", {})
             if gn:
                 gn_tool_calls.append(gn.get("total_tool_calls", 0))
-                gn_augment_hits.append(gn.get("augmentation_hits", 0))
-                gn_augment_calls.append(gn.get("augmentation_calls", 0))
 
     total_cost = sum(costs)
     total_calls = sum(api_calls)
@@ -149,9 +139,6 @@ def compute_metrics(run_data: dict) -> dict:
         "avg_api_calls": total_calls / max(n_instances, 1),
         "total_gn_tool_calls": sum(gn_tool_calls),
         "avg_gn_tool_calls": sum(gn_tool_calls) / max(len(gn_tool_calls), 1) if gn_tool_calls else 0,
-        "total_augment_hits": sum(gn_augment_hits),
-        "total_augment_calls": sum(gn_augment_calls),
-        "augment_hit_rate": sum(gn_augment_hits) / max(sum(gn_augment_calls), 1) if gn_augment_calls else 0,
     }
 
 
@@ -275,11 +262,9 @@ def compare_modes(
         _, mode = parse_run_id(run_id)
         metrics[mode] = compute_metrics(run_data)
 
-    mode_order = [
-        mode
-        for mode in ["baseline", "native", "native_augment", "mcp", "augment", "full"]
-        if mode in metrics
-    ] or sorted(metrics.keys())
+    mode_order = [mode for mode in ["baseline", "native"] if mode in metrics] or sorted(
+        metrics.keys()
+    )
 
     # Print comparison table
     table = Table(title=f"Mode Comparison: {model}")
@@ -296,8 +281,6 @@ def compare_modes(
         ("Total API Calls", "total_api_calls", "d"),
         ("Avg API Calls", "avg_api_calls", ".1f"),
         ("GN Tool Calls", "total_gn_tool_calls", "d"),
-        ("Augment Hits", "total_augment_hits", "d"),
-        ("Augment Hit Rate", "augment_hit_rate", ".1%"),
     ]
 
     for label, key, fmt in rows:
@@ -357,7 +340,6 @@ def gitnexus_usage(
     for key in TOOL_METRIC_KEYS:
         table.add_column(key, justify="right")
     table.add_column("Total", justify="right")
-    table.add_column("Augment Hits", justify="right")
 
     for run_id, run_data in sorted(runs.items()):
         _, mode = parse_run_id(run_id)
@@ -366,28 +348,24 @@ def gitnexus_usage(
 
         # Aggregate tool calls across trajectories
         tool_totals: dict[str, int] = {key: 0 for key in TOOL_METRIC_KEYS}
-        augment_hits = 0
 
         for traj in run_data.get("trajectories", {}).values():
             gn = traj.get("info", {}).get("gitnexus", {}).get("metrics", {})
             for tool, count in gn.get("tool_calls", {}).items():
                 tool_totals[tool] = tool_totals.get(tool, 0) + count
-            augment_hits += gn.get("augmentation_hits", 0)
 
         # Also check summary
         for r in run_data.get("summary", {}).get("results", []):
             gn = r.get("gitnexus_metrics", {})
             for tool, count in gn.get("tool_calls", {}).items():
                 tool_totals[tool] = tool_totals.get(tool, 0) + count
-            augment_hits += gn.get("augmentation_hits", 0)
 
         total = sum(tool_totals.values())
-        if total > 0 or augment_hits > 0:
+        if total > 0:
             table.add_row(
                 run_id,
                 *[str(tool_totals.get(key, 0)) for key in TOOL_METRIC_KEYS],
                 str(total),
-                str(augment_hits),
             )
 
     console.print(table)
@@ -440,13 +418,12 @@ def _print_markdown(all_metrics: dict):
 
 def _print_csv(all_metrics: dict):
     """Print CSV output."""
-    print("run_id,model,mode,n_instances,n_with_patch,patch_rate,total_cost,avg_cost,total_api_calls,avg_api_calls,total_gn_tool_calls,total_augment_hits,augment_hit_rate")
+    print("run_id,model,mode,n_instances,n_with_patch,patch_rate,total_cost,avg_cost,total_api_calls,avg_api_calls,total_gn_tool_calls")
     for run_id, m in sorted(all_metrics.items()):
         print(
             f"{run_id},{m['model']},{m['mode']},{m['n_instances']},{m['n_with_patch']},"
             f"{m['patch_rate']:.4f},{m['total_cost']:.4f},{m['avg_cost']:.4f},"
-            f"{m['total_api_calls']},{m['avg_api_calls']:.1f},{m['total_gn_tool_calls']},"
-            f"{m['total_augment_hits']},{m['augment_hit_rate']:.4f}"
+            f"{m['total_api_calls']},{m['avg_api_calls']:.1f},{m['total_gn_tool_calls']}"
         )
 
 

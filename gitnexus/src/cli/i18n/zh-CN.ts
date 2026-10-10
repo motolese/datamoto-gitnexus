@@ -119,7 +119,7 @@ export const zhCN = {
   'help.option.version': '输出版本号',
   'help.command.setup.description': '一次性设置：为 Cursor、Claude Code、OpenCode、Codex 配置 MCP',
   'help.command.uninstall.description':
-    '撤销 `setup`：从所有检测到的编辑器中移除 GitNexus 的 MCP 配置、技能和钩子',
+    '移除 GitNexus MCP 配置、技能以及旧版本遗留的回调配置',
   'help.command.analyze.description': '索引仓库（完整分析）',
   'help.command.index.description': '将现有 .gitnexus/ 文件夹注册到全局注册表（无需重新分析）',
   'help.command.serve.description': '启动供 Web UI 连接的本地 HTTP 服务器',
@@ -131,7 +131,6 @@ export const zhCN = {
   'help.command.remove.description':
     '删除已注册仓库的 GitNexus 索引（按别名、名称或绝对路径）。与 `clean` 不同，不要求位于仓库内；未知目标会幂等处理。',
   'help.command.wiki.description': '从知识图谱生成仓库 Wiki',
-  'help.command.augment.description': '使用知识图谱上下文增强搜索模式（供 hooks 使用）',
   'help.command.publish.description':
     '通知 understand-quickly 注册表该仓库已有新的 GitNexus 索引。需显式启用：要求 UNDERSTAND_QUICKLY_TOKEN（对 looptech-ai/understand-quickly 具备 `Repository dispatches: write` 的细粒度 PAT）。无 token 时不执行。参见 https://github.com/looptech-ai/understand-quickly。',
   'help.command.query.description': '搜索知识图谱中与概念相关的执行流程',

@@ -21,8 +21,7 @@
  * on npm versions that don't honor --ignore-scripts for prepare/prepack, run the
  * full build — slow enough to time out and fragile).
  *
- * Wired via `prepack`, so it fails `npm pack` / `npm publish` if the invariant is
- * violated.
+ * Run explicitly before release packaging when this invariant needs rechecking.
  */
 const fs = require('fs');
 const path = require('path');

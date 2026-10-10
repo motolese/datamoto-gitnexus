@@ -1,5 +1,4 @@
 * text=auto eol=lf
-.husky/* text eol=lf
 
 # Shell scripts: force LF unconditionally so devcontainer scripts
 # (e.g. anything COPYed into a Linux container) execute correctly when

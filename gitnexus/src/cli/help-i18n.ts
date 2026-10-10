@@ -23,7 +23,6 @@ const COMMAND_DESCRIPTION_KEYS = {
   clean: 'help.command.clean.description',
   remove: 'help.command.remove.description',
   wiki: 'help.command.wiki.description',
-  augment: 'help.command.augment.description',
   publish: 'help.command.publish.description',
   query: 'help.command.query.description',
   context: 'help.command.context.description',

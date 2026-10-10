@@ -5,6 +5,53 @@ import type { GroupManifestLink } from '../../../src/core/group/types.js';
 describe('ManifestExtractor', () => {
   const extractor = new ManifestExtractor();
 
+  it.each([
+    {
+      type: 'topic' as const,
+      contract: 'order.ready',
+      labels: ['Function', 'Method', 'Class', 'Interface'],
+    },
+    {
+      type: 'grpc' as const,
+      contract: 'OrderService/Create',
+      labels: ['Function', 'Method'],
+    },
+    {
+      type: 'thrift' as const,
+      contract: 'billing.OrderService',
+      labels: ['Class', 'Interface'],
+    },
+    {
+      type: 'lib' as const,
+      contract: '@scope/contracts',
+      labels: ['Package', 'Module'],
+    },
+  ])('uses executable label predicates for $type manifests', async ({ type, contract, labels }) => {
+    const links: GroupManifestLink[] = [
+      { from: 'provider', to: 'consumer', type, contract, role: 'provider' },
+    ];
+    const calls: Array<{ cypher: string; params?: Record<string, unknown> }> = [];
+    const execute = async (cypher: string, params?: Record<string, unknown>) => {
+      calls.push({ cypher, params });
+      return [];
+    };
+    await extractor.extractFromManifest(
+      links,
+      new Map([
+        ['provider', execute],
+        ['consumer', execute],
+      ]),
+    );
+
+    expect(calls).toHaveLength(2);
+    for (const call of calls) {
+      expect(call.cypher).toContain('MATCH (n)');
+      expect(call.cypher).toContain('labels(n) IN $labels');
+      expect(call.cypher).not.toMatch(/MATCH \(n:[^)]+\|/);
+      expect(call.params?.labels).toEqual(labels);
+    }
+  });
+
   it('creates provider + consumer contracts and a cross-link for each manifest link', async () => {
     const links: GroupManifestLink[] = [
       {
@@ -823,14 +870,16 @@ describe('ManifestExtractor', () => {
       },
     ];
     let capturedCypher = '';
+    let capturedParams: Record<string, unknown> | undefined;
     const dbExecutors = new Map<
       string,
       (cypher: string, params?: Record<string, unknown>) => Promise<Record<string, unknown>[]>
     >([
       [
         'parser/mathlex',
-        async (cypher) => {
+        async (cypher, params) => {
           capturedCypher = cypher;
+          capturedParams = params;
           return [];
         },
       ],
@@ -839,7 +888,12 @@ describe('ManifestExtractor', () => {
 
     await extractor.extractFromManifest(links, dbExecutors);
 
-    expect(capturedCypher).toContain('Function|Method|Class|Interface|Struct|Enum|Trait');
+    expect(capturedCypher).toContain('MATCH (n)');
+    expect(capturedCypher).toContain('labels(n) IN $labels');
+    expect(capturedCypher).not.toMatch(/MATCH \(n:[^)]+\|/);
+    expect(capturedParams?.labels).toEqual(
+      expect.arrayContaining(['Function', 'Method', 'Struct', 'Enum', 'Trait', 'CodeElement']),
+    );
     expect(capturedCypher).not.toContain('NOT n:File');
   });
 

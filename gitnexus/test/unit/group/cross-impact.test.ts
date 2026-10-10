@@ -89,6 +89,22 @@ describe('cross-impact', () => {
     if (r.ok) expect(r.timeoutMs).toBe(DEFAULT_LOCAL_IMPACT_TIMEOUT_MS);
   });
 
+  it.each([
+    ['target_uid', ''],
+    ['file_path', 42],
+    ['kind', '   '],
+  ])('test_validateGroupImpactParams_rejects_invalid_%s', (key, value) => {
+    const r = validateGroupImpactParams({
+      name: 'g',
+      repo: 'a',
+      target: 't',
+      direction: 'upstream',
+      [key]: value,
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain(key);
+  });
+
   it('test_collectImpactSymbolUids_respects_service_prefix', () => {
     const local = {
       target: { id: 'a', filePath: 'services/auth/x.ts' },
@@ -159,6 +175,7 @@ describe('cross-impact', () => {
     const { tmpDir, cleanup } = tmpGroup();
     vi.stubEnv('GITNEXUS_HOME', tmpDir);
     try {
+      const impact = vi.fn(async () => ({ error: 'symbol not found: Sym' }));
       const port: GroupToolPort = {
         resolveRepo: vi.fn(async () => ({
           id: 'be',
@@ -166,7 +183,7 @@ describe('cross-impact', () => {
           repoPath: '/r',
           storagePath: '/r/.gitnexus',
         })),
-        impact: vi.fn(async () => ({ error: 'symbol not found: Sym' })),
+        impact,
         query: vi.fn(),
         impactByUid: vi.fn(),
         context: vi.fn(),
@@ -177,6 +194,9 @@ describe('cross-impact', () => {
           name: 'g1',
           repo: 'app/backend',
           target: 'Sym',
+          target_uid: 'Function:src/sym.ts:Sym',
+          file_path: 'src/sym.ts',
+          kind: 'Function',
           direction: 'upstream',
         },
       );
@@ -188,6 +208,14 @@ describe('cross-impact', () => {
       // And ensure we didn't silently fall back to a zero-hit success payload.
       expect((r as { summary?: unknown }).summary).toBeUndefined();
       expect((r as { cross?: unknown }).cross).toBeUndefined();
+      expect(impact).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'reg-be' }),
+        expect.objectContaining({
+          target_uid: 'Function:src/sym.ts:Sym',
+          file_path: 'src/sym.ts',
+          kind: 'Function',
+        }),
+      );
     } finally {
       vi.unstubAllEnvs();
       cleanup();
